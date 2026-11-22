@@ -7,6 +7,8 @@
 - データは自分のブラウザ（localStorage）にだけ保存。サーバーには送りません
 - 2025年・2026年・2027年のルールに対応（`js/rules.js`）
 
+**すぐ使う**：https://haruki3242.github.io/fuyou-checker/ （データは各自のブラウザにだけ保存されます）
+
 使い方は [guide.html](guide.html)（1ページのガイド）にもまとめています。
 
 ## できること
