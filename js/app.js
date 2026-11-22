@@ -4,7 +4,7 @@
   const C = window.FuyouCalc;
   const RULES = window.FuyouRules;
   const KEY = 'fuyou-checker:v1';
-  const APP_VERSION = '1.4.0'; // index.html の data-app-version と ?v= も一緒に上げる
+  const APP_VERSION = '1.4.1'; // index.html の data-app-version と ?v= も一緒に上げる
   const JOB_COLORS = ['#2f7d6d', '#d9822b', '#5b6abf', '#c2477a', '#7a8b2f', '#3a8fb7'];
 
   // ---------- 状態 ----------
@@ -706,8 +706,22 @@
   }
   const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '-' : `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
+  // サーバーでPHP（api/sync.php）が動いているか一度だけ確認する。GitHub Pages などでは動かない
+  let phpStatus = 'unknown'; // unknown | ok | none
+  async function probePhp() {
+    if (location.protocol === 'file:' || phpStatus !== 'unknown') return;
+    try {
+      const res = await fetch(SYNC_URL, { method: 'GET', cache: 'no-store' });
+      const json = await res.json(); // PHPが動いていれば 405 の JSON が返る
+      phpStatus = json && json.ok === false ? 'ok' : 'none';
+    } catch (e) {
+      phpStatus = navigator.onLine === false ? 'unknown' : 'none';
+    }
+    renderSync();
+  }
   function renderSync() {
     const unavailable = location.protocol === 'file:' ? 'ファイルを直接開いている（file://）ため、サーバー同期は使えません。サーバーにアップロードして https:// で開いてください。'
+      : phpStatus === 'none' ? 'このサイトではPHPが動いていないため、サーバー同期とスマホ用QRは使えません（GitHub Pages など）。端末の移行は上の「バックアップ」を使ってください。同期したい場合は、PHPが動くサーバーに置いてください（使い方ガイド参照）。'
       : !FC.available() ? 'https:// で開いていないため暗号化が使えません。サーバーをHTTPSにしてください。' : '';
     $('#syncUnavailable').hidden = !unavailable;
     $('#syncUnavailable').textContent = unavailable;
@@ -908,6 +922,7 @@
   resetJobForm();
   renderAll();
   renderSync();
+  probePhp();
   receiveHandoff();
   window.addEventListener('hashchange', receiveHandoff);
 })();
