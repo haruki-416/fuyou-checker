@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.backup.json
+fuyou-checker-backup-*.json
+data/sync-*.json
+data/fails-*.json
+api/config.php
+data/handoff-*.json

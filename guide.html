@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扶養チェッカー 使い方ガイド</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #fff; --ink: #1f2a2e; --muted: #6b7378; --line: #e4e0d8;
+    --accent: #2f7d6d; --accent-soft: #e3f1ed; --warn: #c0661b; --warn-bg: #fdebdc; --info: #4a5a9c; --info-bg: #e8ebf7;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161a1c; --card: #1f2427; --ink: #e8eaeb; --muted: #9aa3a8; --line: #30373b;
+      --accent: #5cc0a8; --accent-soft: #1f3631; --warn: #f0995a; --warn-bg: #3d2a1c; --info: #9aa8f0; --info-bg: #252b45; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.75; font-size: 15.5px; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 1.25rem 4rem; }
+  header.hero { padding: 2.5rem 0 1.5rem; display: flex; gap: 1rem; align-items: center; }
+  .logo { width: 56px; height: 56px; border-radius: 16px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 1.7rem; font-weight: 700; flex: none; }
+  h1 { font-size: 1.7rem; margin: 0; line-height: 1.3; }
+  .lead { margin: .2rem 0 0; color: var(--muted); }
+  h2 { font-size: 1.25rem; margin: 2.6rem 0 .8rem; padding-bottom: .4rem; border-bottom: 2px solid var(--accent); scroll-margin-top: 1rem; }
+  h3 { font-size: 1.02rem; margin: 1.6rem 0 .5rem; }
+  p { margin: .5rem 0; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; background: var(--line); padding: .1em .35em; border-radius: 4px; }
+  pre { background: #1f2a2e; color: #e8eaeb; padding: .9rem 1rem; border-radius: 10px; overflow-x: auto; font-size: .85rem; line-height: 1.6; }
+  pre code { background: none; padding: 0; color: inherit; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.2rem; margin: .8rem 0; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: .9rem 1.2rem; }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.3rem; columns: 2; column-gap: 2rem; }
+  nav.toc li { break-inside: avoid; }
+  @media (max-width: 600px) { nav.toc ol { columns: 1; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .8rem; }
+  .feature { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .8rem 1rem; }
+  .feature b { display: block; margin-bottom: .2rem; }
+  .feature span { font-size: .88rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; background: var(--card); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  td.num { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  .table-wrap table { border-radius: 0; }
+  .note { border-left: 4px solid var(--info); background: var(--info-bg); padding: .7rem 1rem; border-radius: 0 10px 10px 0; margin: .8rem 0; font-size: .93rem; }
+  .note.warn { border-color: var(--warn); background: var(--warn-bg); }
+  .note.ok { border-color: var(--accent); background: var(--accent-soft); }
+  .ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; }
+  @media (max-width: 720px) { .ways { grid-template-columns: 1fr; } }
+  .way { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; }
+  .way .tag { display: inline-block; font-size: .75rem; font-weight: 700; padding: .1rem .55rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .way h3 { margin: .4rem 0 .3rem; }
+  .way ul { padding-left: 1.1rem; margin: .3rem 0; font-size: .9rem; }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: .2rem 0 .9rem 2.6rem; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: .1rem; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .9rem; }
+  .compare td:first-child { white-space: nowrap; font-weight: 600; }
+  .muted { color: var(--muted); }
+  .small { font-size: .86rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+  .open-app { display: inline-block; margin-top: .8rem; background: var(--accent); color: #fff; text-decoration: none; padding: .6rem 1.2rem; border-radius: 10px; font-weight: 600; }
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    .open-app, nav.toc { display: none; }
+    h2 { break-after: avoid; }
+    .card, .feature, .way, table, pre { break-inside: avoid; }
+    pre { background: #f2f2f2; color: #000; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="logo" aria-hidden="true">¥</div>
+  <div>
+    <h1>扶養チェッカー 使い方ガイド</h1>
+    <p class="lead">バイト代を記録して「年収の壁」をこえないか確認するツールの、仕様と使い始め方のまとめ（v1.4.0）</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="目次">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#what">何ができるか</a></li>
+    <li><a href="#walls">2026年の年収の壁</a></li>
+    <li><a href="#start">使い始める3つの方法</a></li>
+    <li><a href="#first">最初の入力（3ステップ）</a></li>
+    <li><a href="#record">給料の記録のしかた</a></li>
+    <li><a href="#dashboard">ダッシュボードの見かた</a></li>
+    <li><a href="#sync">スマホ・PCで同期する</a></li>
+    <li><a href="#security">データと暗号化のしくみ</a></li>
+    <li><a href="#update">更新・改造するとき</a></li>
+    <li><a href="#faq">よくある質問・注意</a></li>
+  </ol>
+</nav>
+
+<h2 id="what">1. 何ができるか</h2>
+<p>給与明細の数字を入れるだけで、扶養から外れそうかどうか、あと月いくらまで働けるか、税金が戻ってくるかを自動で判定します。インストールは不要で、ブラウザだけで動きます。</p>
+<div class="grid">
+  <div class="feature"><b>年収の壁チェック</b><span>住民税・親の扶養控除・19〜22歳の特例・所得税・社会保険の扶養をまとめて判定</span></div>
+  <div class="feature"><b>年末の見込み</b><span>直近3か月の平均から年末の着地を予測。「残り月あたりいくらまで」を表示</span></div>
+  <div class="feature"><b>掛け持ち対応</b><span>バイト先ごとに集計。甲欄が2か所になっていたら警告</span></div>
+  <div class="feature"><b>源泉徴収・確定申告</b><span>引かれすぎの税金が還付申告でいくら戻るか、確定申告が必要かを判定</span></div>
+  <div class="feature"><b>給料日の自動入力</b><span>「毎月25日・土日祝は前倒し」などを保存。祝日・年末年始も計算し、記録し忘れも通知</span></div>
+  <div class="feature"><b>入力ミス防止</b><span>明細の総支給額（交通費込み）をそのまま入力。振込額を入れると計算が合うかチェック</span></div>
+  <div class="feature"><b>暗号化バックアップ</b><span>パスワード付きのJSONで書き出し・読み込み</span></div>
+  <div class="feature"><b>スマホ・PC同期</b><span>暗号化してサーバーに保存。QRコードを読むだけでスマホとつながる</span></div>
+</div>
+
+<h2 id="walls">2. 2026年の年収の壁（給料だけの場合）</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>年収</th><th>こえると何が起きる？</th><th>影響</th></tr></thead>
+  <tbody>
+    <tr><td class="num">119万円超</td><td>自分に住民税がかかり始める（自治体によって少し低い）</td><td>自分</td></tr>
+    <tr><td class="num">130万円以上</td><td>家族の健康保険の扶養から外れる（下の150万円・180万円に当てはまらない人）</td><td>自分・家族</td></tr>
+    <tr><td class="num">136万円超</td><td>親の扶養控除の対象外になる（16〜18歳・23歳以上）。配偶者は配偶者特別控除に切り替わる</td><td>親・配偶者</td></tr>
+    <tr><td class="num">150万円以上</td><td>19〜22歳（配偶者以外）が健康保険の扶養から外れる</td><td>自分・家族</td></tr>
+    <tr><td class="num">159万円超</td><td>19〜22歳：親の控除（特定親族特別控除）が段階的に減り始める</td><td>親</td></tr>
+    <tr><td class="num">169万円超</td><td>配偶者特別控除が減り始める</td><td>配偶者</td></tr>
+    <tr><td class="num">178万円超</td><td>自分に所得税がかかり始める（超えた分の約5%）</td><td>自分</td></tr>
+    <tr><td class="num">197万円超</td><td>19〜22歳：親の控除がゼロになる</td><td>親</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="small muted">60歳以上・障害者の健康保険の扶養は180万円未満。2025年分・2027年分のルールも入っていて、画面右上で年を切り替えられます。</p>
+
+<h3>税金と社会保険では「数え方」が違う</h3>
+<div class="table-wrap">
+<table class="compare">
+  <thead><tr><th></th><th>税金の壁（所得税・住民税・親の控除）</th><th>社会保険の壁（130万円・150万円）</th></tr></thead>
+  <tbody>
+    <tr><td>期間</td><td>1月1日〜12月31日に<strong>支給された</strong>分（12月分が1月に振り込まれたら翌年）</td><td><strong>これから1年間</strong>の見込み</td></tr>
+    <tr><td>交通費</td><td>含めない</td><td><strong>含める</strong></td></tr>
+    <tr><td>判定のもと</td><td>実際にもらった額</td><td>2026年4月からは労働契約（労働条件通知書）の賃金が原則。残業代など一時的な増加は含めない</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>勤務先の社会保険に入る条件</h3>
+<p>2026年10月から「月8.8万円以上」（いわゆる106万円の壁）の条件はなくなりました。いまは<strong>週20時間以上・従業員51人以上の会社・学生でない</strong>などがそろうと、勤務先の社会保険に加入します。掛け持ちの時間は合算しません。加入すると家族の扶養からは外れるので、130万円の壁は関係なくなります。</p>
+
+<h2 id="start">3. 使い始める3つの方法</h2>
+<div class="ways">
+  <div class="way">
+    <span class="tag">いちばん簡単</span>
+    <h3>A. 自分のPCで開く</h3>
+    <ul>
+      <li>フォルダの <code>index.html</code> をダブルクリック</li>
+      <li>記録・判定・バックアップはすべて使える</li>
+      <li>サーバー同期とQRは使えない</li>
+    </ul>
+  </div>
+  <div class="way">
+    <span class="tag">スマホでも見たい</span>
+    <h3>B. GitHub Pages</h3>
+    <ul>
+      <li>無料でURLができる</li>
+      <li>データは端末ごとに別々（同期なし）</li>
+      <li>端末の移行はバックアップで</li>
+    </ul>
+  </div>
+  <div class="way">
+    <span class="tag">同期したい</span>
+    <h3>C. PHPのサーバー</h3>
+    <ul>
+      <li>レンタルサーバーなど</li>
+      <li>スマホとPCで同じデータを使える</li>
+      <li>HTTPSが必須</li>
+    </ul>
+  </div>
+</div>
+
+<h3>A. 自分のPCで開く</h3>
+<pre><code>git clone https://github.com/&lt;ユーザー名&gt;/fuyou-checker.git
+cd fuyou-checker
+# index.html をブラウザで開く</code></pre>
+<p>zipでもらった場合は、解凍して <code>index.html</code> を開くだけです。</p>
+
+<h3>B. GitHub Pages で公開する</h3>
+<ol class="steps">
+  <li>GitHub にリポジトリを作って push する（または Fork する）</li>
+  <li><strong>Settings → Pages</strong> で「Deploy from a branch」「<code>main</code> / <code>(root)</code>」を選んで保存</li>
+  <li>数分後に <code>https://&lt;ユーザー名&gt;.github.io/fuyou-checker/</code> で開ける</li>
+</ol>
+<div class="note">公開されるのはツールだけです。入力したデータは各自のブラウザの中にしか保存されないので、URLを他の人に教えても自分の記録は見えません。</div>
+
+<h3>C. PHPのサーバーに置く（同期を使う）</h3>
+<ol class="steps">
+  <li>フォルダごとサーバーにアップロードする（例：<code>public_html/fuyou/</code>）</li>
+  <li><strong>HTTPS</strong> で開けることを確認する（ブラウザの暗号化機能は https:// でしか動きません）</li>
+  <li><code>data/</code> フォルダに PHP から書き込めるようにする（多くのレンタルサーバーはそのままでOK）</li>
+  <li>より安全にしたい場合、または nginx の場合は、保存先を公開フォルダの外にする：
+<pre><code>cp api/config.sample.php api/config.php
+# api/config.php を編集
+define('FUYOU_DATA_DIR', '/home/youruser/fuyou-data');</code></pre></li>
+</ol>
+<div class="card small">
+  <strong>必要なもの</strong>：PHP 7.4 以上 / HTTPS / 書き込みできるフォルダ<br>
+  <strong>ローカルで試す</strong>：<code>php -S localhost:8000</code> を実行して <code>http://localhost:8000</code> を開く（localhost は http でも暗号化が使えます）
+</div>
+
+<h2 id="first">4. 最初の入力（3ステップ）</h2>
+<ol class="steps">
+  <li><strong>自分の情報</strong>タブ：生年月日、だれの扶養か（親／配偶者／なし）、学生かどうか、住んでいる地域を入れる。<br><span class="small muted">扶養の判定は「その年の12月31日時点の年齢」で行います。</span></li>
+  <li><strong>バイト先</strong>タブ：掛け持ちなら全部登録する。
+    <ul class="small">
+      <li><strong>源泉の区分</strong>：扶養控除等申告書を出したところは「甲欄」（1か所だけ）、それ以外は「乙欄」</li>
+      <li><strong>週の所定労働時間・契約上の月収</strong>：労働条件通知書の数字。社会保険の判定に使う</li>
+      <li><strong>給料日・土日祝のとき</strong>：「この設定だと 11/25(水)、12/25(金)…」と今後の支給日が出るので確認</li>
+    </ul>
+  </li>
+  <li><strong>給料の記録</strong>タブ：給与明細を見ながら入力する（次の章）</li>
+</ol>
+<div class="note ok">まず触ってみたいときは、「自分の情報」→「サンプルデータを入れてみる」で、20歳の大学生・掛け持ちの例が入ります。</div>
+
+<h2 id="record">5. 給料の記録のしかた</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>入力欄</th><th>給与明細のどこ？</th><th>メモ</th></tr></thead>
+  <tbody>
+    <tr><td>支給日</td><td>振込日</td><td>給料日を登録していれば自動で入る。「‹ 前の月 / 次の月 ›」で切り替え</td></tr>
+    <tr><td>総支給額（交通費込み）</td><td>「総支給額」「支給合計」</td><td><strong>通帳の振込額ではない</strong></td></tr>
+    <tr><td>うち交通費</td><td>「通勤手当」「交通費」</td><td>税金の計算では自動で除く。社会保険の判定には含める</td></tr>
+    <tr><td>所得税</td><td>「所得税」「源泉所得税」</td><td>引かれていなければ0</td></tr>
+    <tr><td>社会保険料</td><td>健康保険・厚生年金・雇用保険の合計</td><td>引かれていなければ0</td></tr>
+    <tr><td>振込額（任意）</td><td>通帳に入った額</td><td>入れると入力ミスをチェック</td></tr>
+  </tbody>
+</table>
+</div>
+<p>入力中は「税金の計算に使う額（＝総支給−交通費）」が下に表示されます。総支給と振込額が同じなのに税金が引かれている場合など、手取りを入れてしまったと思われるときは保存前に確認が出ます。</p>
+
+<h2 id="dashboard">6. ダッシュボードの見かた</h2>
+<ul>
+  <li><strong>上の4つの数字</strong>：今年もらった額／年末の見込み／次の壁まであといくら／引かれた所得税</li>
+  <li><strong>年収の壁</strong>：バーの色つき部分がもらった額、しま模様が年末の見込み。壁ごとに「セーフ／もうすぐ／このままだと超える／超えた」</li>
+  <li><strong>社会保険</strong>：契約上の見込み年収と、最近のペース×12の両方で判定。バイト先ごとの社保加入条件も表示</li>
+  <li><strong>税金・源泉徴収</strong>：今年の所得税の見込み、親が受けられる控除、バイト先ごとの源泉</li>
+  <li><strong>やることリスト</strong>：確定申告が必要／還付で戻りそう／甲欄が2か所／記録し忘れ、などを表示</li>
+  <li><strong>月ごとの給料</strong>：バイト先別の積み上げグラフと、社会保険の月の目安ライン</li>
+</ul>
+<p class="small muted">見込みはシフトが決まっていれば「自分の情報」→「年末までの見込みを自分で入力する」で上書きできます。</p>
+
+<h2 id="sync">7. スマホ・PCで同期する</h2>
+<p>方法C（PHPのサーバー）で使っている場合だけ利用できます。</p>
+<h3>1台目（PC）</h3>
+<ol class="steps">
+  <li>「自分の情報」→「サーバー同期（暗号化）」で「IDを作る」</li>
+  <li>同期パスワード（8文字以上、おすすめは12文字以上）を決めて「接続する」</li>
+  <li>「記録を保存するたびに自動でサーバーにも保存する」をオンにしておく</li>
+</ol>
+<h3>2台目（スマホ）</h3>
+<ol class="steps">
+  <li>PCで「スマホ用のQRコードを作る」を押す</li>
+  <li>スマホのカメラでQRコードを読み取って開く</li>
+  <li>「PCとつながりました」と出たら完了。IDとパスワードの入力は不要</li>
+</ol>
+<div class="note warn">QRコード（リンク）は<strong>1回だけ・10分間</strong>有効です。10分以内なら誰が開いてもつながってしまうので、LINEのグループやSNSには貼らないでください。QRが使えないときは、スマホで同じ同期IDとパスワードを入れて「接続する」でもつながります。</div>
+<p>別の端末が先に更新していた場合は、上書きせずに知らせます。「サーバーから読み込む」で向こうのデータを取り込むか、「サーバーに保存」で上書きするかを選んでください。</p>
+
+<h2 id="security">8. データと暗号化のしくみ</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>データ</th><th>置き場所</th><th>だれが読める？</th></tr></thead>
+  <tbody>
+    <tr><td>記録・設定</td><td>ブラウザの中（localStorage）</td><td>その端末を使える人</td></tr>
+    <tr><td>同期データ</td><td>サーバーの <code>data/</code>（暗号文）</td><td>パスワードを知っている人だけ。サーバー管理者も読めない</td></tr>
+    <tr><td>暗号化バックアップ</td><td>書き出したJSONファイル</td><td>パスワードを知っている人だけ</td></tr>
+    <tr><td>パスワード・暗号鍵</td><td>サーバーには送らない</td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+<ul>
+  <li><strong>鍵の作り方</strong>：パスワードからハッシュ計算を60万回繰り返して鍵を作る（PBKDF2-SHA256）。総当たりで破られにくくするため、わざと時間のかかる計算にしている</li>
+  <li><strong>暗号化</strong>：AES-GCM 256bit。保存のたびにランダムな値を使い、書き換えられたら検出できる</li>
+  <li><strong>サーバーの認証</strong>：暗号鍵とは別の「認証トークン」を作って送る。サーバーはそれをさらにハッシュ化して保存。認証の失敗は同じIPから1時間20回まで</li>
+  <li><strong>スマホ用リンク</strong>：使い捨ての鍵はURLの <code>#</code> 以降（ブラウザがサーバーに送らない部分）にだけ入り、開いた直後にURLから消える</li>
+  <li>暗号化はブラウザ標準の Web Crypto API を使い、外部のサイトには一切つながない（QRコード生成も同梱）</li>
+</ul>
+<div class="note warn">パスワードを忘れると、だれにも復元できません。また「次回からパスワード入力を省略する」をオンにすると、暗号鍵がそのブラウザに保存されます。共用のPCではオフにしてください。</div>
+
+<h2 id="update">9. 更新・改造するとき</h2>
+<h3>ファイルを更新したのに画面が変わらない</h3>
+<p>ブラウザが古いファイルを覚えているのが原因です。<strong>Ctrl+Shift+R</strong>（Mac は Cmd+Shift+R、スマホはタブを閉じて開き直す）で再読み込みしてください。画面の一番下にバージョンが表示され、古いファイルが混ざっていると上部に赤い帯で警告が出ます。</p>
+<h3>税制改正があったとき</h3>
+<p>金額はすべて <code>js/rules.js</code> にまとまっています。既存の年をコピーして数字を書き換えるだけで、新しい年に対応できます。変更したら <code>npm test</code> でテストを実行してください（Node.js 18以上、依存パッケージなし）。</p>
+<h3>改造して配布するとき</h3>
+<p><code>js/app.js</code> の <code>APP_VERSION</code>、<code>index.html</code> の <code>data-app-version</code> と <code>?v=</code> を同じ番号に上げると、利用者のブラウザも新しいファイルを読みにいきます。</p>
+<h3>ファイル構成</h3>
+<pre><code>index.html          画面
+guide.html          このガイド
+css/style.css       見た目（ダークモード対応）
+js/rules.js         年度ごとのルール（税制改正のときはここ）
+js/calc.js          計算ロジック
+js/holidays.js      祝日・銀行休業日と給料日の計算
+js/crypto.js        暗号化
+js/app.js           画面の処理
+js/vendor/qrcode.js QRコード生成（MIT License）
+api/sync.php        同期API（暗号文を保管するだけ）
+data/               同期データの保存先（外から見えない設定済み）
+test/               テスト</code></pre>
+
+<h2 id="faq">10. よくある質問・注意</h2>
+<h3>壁を少しこえたら大損する？</h3>
+<p>所得税は超えた分の約5%がかかるだけなので、いきなり手取りが大きく減ることはありません。影響が大きいのは<strong>社会保険の扶養（130万円・150万円）</strong>で、外れると自分で保険料を払うことになり、手取りが年20万円前後減ることもあります。親の控除が減る壁は親の税金が増えるので、家族と相談しましょう。</p>
+<h3>掛け持ちで気をつけることは？</h3>
+<p>扶養控除等申告書（甲欄）はメインの1か所だけに出します。年末調整はそのバイト先の分しか計算されないので、乙欄で引かれた税金は翌年1月以降に<strong>確定申告（還付申告）</strong>で取り戻せます（5年以内）。辞めたバイト先も含めて、源泉徴収票は必ずもらっておきましょう。</p>
+<h3>データが消えた</h3>
+<p>ブラウザの履歴・Cookieを消したり、プライベートブラウズで開いたりすると、記録が消えることがあります。ときどき「バックアップを書き出す」をしておくと安心です。同期を使っていれば「サーバーから読み込む」で戻せます。</p>
+<h3>計算は正確？</h3>
+<p>給料だけの人を想定した<strong>概算</strong>です。住民税の基準は自治体ごとに少し違い、健康保険組合が独自の基準を持っている場合もあります。最終的な判断は、勤務先、扶養者の勤務先（健康保険組合）、税務署、市区町村に確認してください。</p>
+
+<p><a class="open-app" href="index.html">扶養チェッカーを開く →</a></p>
+
+<footer>
+  <p>参考資料（2026年11月時点）：国税庁「令和8年分 年末調整のしかた」「源泉徴収税額表」／財務省「令和8年度税制改正」／各市区町村「令和9年度 個人住民税の改正」／日本年金機構「19歳以上23歳未満の方の被扶養者認定」「労働契約内容による年間収入での被扶養者の認定」／厚生労働省「短時間労働者の社会保険の加入拡大」</p>
+  <p>MIT License</p>
+</footer>
+
+</div>
+</body>
+</html>
