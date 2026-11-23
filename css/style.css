@@ -228,3 +228,8 @@ tr.just-saved td { animation: rowflash 2.5s ease; }
 #paymentForm.is-contract .hint.contract-only { display: block !important; }
 .note-mixed { background: var(--info-bg); color: var(--ink); border-radius: 8px; padding: .6rem .8rem; margin: .4rem 0 .2rem; }
 .wall-amount small:first-child { margin-bottom: -.1rem; }
+
+/* 申告書 */
+.nav-table th { width: 38%; color: var(--ink); font-weight: 600; }
+#tab-shinkoku details summary { cursor: pointer; color: var(--accent); }
+#tab-shinkoku h3 { margin-top: 1.1rem; font-size: .92rem; color: var(--accent); }

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ja" data-app-version="1.5.0">
+<html lang="ja" data-app-version="1.6.0">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-cache">
   <title>扶養チェッカー｜バイト代と年収の壁</title>
-  <link rel="stylesheet" href="css/style.css?v=1.5.0">
+  <link rel="stylesheet" href="css/style.css?v=1.6.0">
 </head>
 <body>
   <div id="versionBanner" class="version-banner" hidden></div>
@@ -27,6 +27,7 @@
     <button class="tab" data-tab="payments">給料の記録</button>
     <button class="tab" data-tab="jobs">バイト先</button>
     <button class="tab" data-tab="settings">自分の情報</button>
+    <button class="tab" data-tab="shinkoku">申告書</button>
     <button class="tab" data-tab="guide">しくみ解説</button>
   </nav>
 
@@ -262,6 +263,76 @@
       </div>
     </section>
 
+    <!-- 扶養控除等申告書 -->
+    <section id="tab-shinkoku" class="panel">
+      <div class="card">
+        <h2>扶養控除等（異動）申告書をつくる</h2>
+        <p class="small">質問に答えると、申告書の<strong>どの欄に何を書くか</strong>が下に出ます。国税庁の入力用PDFを選べば、<strong>記入済みのPDF</strong>も作れます。</p>
+        <ul class="small muted">
+          <li>出すのは<strong>メインのバイト先1か所だけ</strong>（ここが「甲欄」になります）。2か所目以降には出しません</li>
+          <li>期限：その年の最初の給料日の前日まで（令和9年分なら、2027年最初の給料日の前日まで）</li>
+          <li>マイナンバー（個人番号）はこのツールでは保存も書き込みもしません。印刷後に手書きしてください</li>
+        </ul>
+        <form id="shinkokuForm" class="form-grid" autocomplete="off">
+          <label>申告書の年分
+            <select name="formYear"></select>
+            <span class="hint" id="formYearNote"></span></label>
+          <label>出すバイト先
+            <select name="jobId"></select>
+            <span class="hint">甲欄のバイト先を選ぶと会社名が入ります</span></label>
+          <label>会社名（給与の支払者の名称）<input type="text" name="payerName" maxlength="40" placeholder="例: 株式会社〇〇">
+            <span class="hint">給与明細や雇用契約書に書いてある会社名</span></label>
+          <label>会社の所在地（任意）<input type="text" name="payerAddress" maxlength="60" placeholder="分からなければ空欄"></label>
+          <label>氏名<input type="text" name="name" maxlength="30" placeholder="例: 山田　太郎"></label>
+          <label>フリガナ<input type="text" name="kana" maxlength="30" placeholder="例: ヤマダ　タロウ"></label>
+          <label>郵便番号<input type="text" name="zip" maxlength="8" inputmode="numeric" placeholder="例: 100-8978"></label>
+          <label>住所（住民票の住所）<input type="text" name="address" maxlength="80" placeholder="例: 東京都千代田区霞が関3-1-1"></label>
+          <label>住んでいる市区町村（任意）<input type="text" name="city" maxlength="20" placeholder="例: 千代田区、横浜市">
+            <span class="hint">申告書左上の「市区町村長」欄に入ります</span></label>
+          <label>世帯主の氏名<input type="text" name="householder" maxlength="30" placeholder="実家なら親の名前が多い">
+            <span class="hint">住民票の世帯主。自分が世帯主なら自分の名前</span></label>
+          <label>世帯主はあなたの
+            <select name="relationSel">
+              <option value="父">父</option><option value="母">母</option><option value="本人">本人（自分が世帯主）</option>
+              <option value="祖父">祖父</option><option value="祖母">祖母</option><option value="夫">夫</option><option value="妻">妻</option>
+              <option value="">その他（下に入力）</option>
+            </select></label>
+          <label>続柄（その他の場合）<input type="text" name="relationOther" maxlength="10" placeholder="例: 兄"></label>
+          <label class="check wide"><input type="checkbox" name="spouse"> 結婚している（配偶者がいる）</label>
+          <label class="check wide"><input type="checkbox" name="kinro"> 勤労学生として申告する <span class="hint" id="kinroHint"></span></label>
+          <label class="wide">学校名・学年（勤労学生の場合）<input type="text" name="school" maxlength="40" placeholder="例: ○○大学 経済学部 2年"></label>
+          <details class="wide small">
+            <summary>あまり使わない項目（寡婦・ひとり親・掛け持ち先への提出）</summary>
+            <div class="form-grid" style="margin-top:.5rem">
+              <label class="check"><input type="checkbox" name="widow"> 寡婦に当たる</label>
+              <label class="check"><input type="checkbox" name="singleParent"> ひとり親に当たる</label>
+              <label class="check wide"><input type="checkbox" name="secondary"> 2か所目の給料について「従たる給与についての扶養控除等申告書」も出している（ほとんどの人は該当しません）</label>
+              <label>所轄税務署（任意）<input type="text" name="taxOffice" maxlength="20" placeholder="勤務先が書くことが多い"></label>
+            </div>
+          </details>
+        </form>
+        <p class="muted small">入力した内容はこの端末（同期を使っていれば暗号化してサーバー）に保存されます。マイナンバーは保存しません。</p>
+      </div>
+      <div class="card">
+        <h2>記入ナビ</h2>
+        <p class="muted small">ダウンロードした用紙に手書きするときは、この一覧を見ながら書けばOKです。</p>
+        <div id="shinkokuNav"></div>
+      </div>
+      <div class="card">
+        <h2>記入済みのPDFを作る</h2>
+        <ol class="small">
+          <li>国税庁の<a href="https://www.nta.go.jp/taxes/tetsuzuki/shinsei/annai/gensen/annai/1648_01.htm" target="_blank" rel="noopener">扶養控除等（異動）申告書のページ</a>から、<strong>上で選んだ年分</strong>の入力用PDFをダウンロード</li>
+          <li>下のボタンでそのPDFを選ぶ → 記入済みのPDFが保存されます</li>
+          <li>開いて内容を確認し、印刷してマイナンバーを手書きして提出（勤務先がPDFのままで受け付けるならそのままでも）</li>
+        </ol>
+        <div class="btn-row">
+          <label class="btn primary">国税庁のPDFを選んで書き込む<input type="file" id="shinkokuPdf" accept="application/pdf,.pdf" hidden></label>
+          <span class="save-status" id="shinkokuStatus" role="status" aria-live="polite"></span>
+        </div>
+        <p class="muted small">PDFはこの端末の中だけで処理し、どこにも送りません。文字が見えないときは Adobe Acrobat Reader や Chrome で開いてください。</p>
+      </div>
+    </section>
+
     <!-- 解説 -->
     <section id="tab-guide" class="panel">
       <div class="card"><a href="guide.html">📖 使い方ガイド</a> <span class="muted small">— 使い始め方、同期の設定、暗号化のしくみなどを1ページにまとめています</span></div>
@@ -278,11 +349,12 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/rules.js?v=1.5.0"></script>
-  <script src="js/calc.js?v=1.5.0"></script>
-  <script src="js/holidays.js?v=1.5.0"></script>
-  <script src="js/vendor/qrcode.js?v=1.5.0"></script>
-  <script src="js/crypto.js?v=1.5.0"></script>
-  <script src="js/app.js?v=1.5.0"></script>
+  <script src="js/rules.js?v=1.6.0"></script>
+  <script src="js/calc.js?v=1.6.0"></script>
+  <script src="js/holidays.js?v=1.6.0"></script>
+  <script src="js/shinkoku.js?v=1.6.0"></script>
+  <script src="js/vendor/qrcode.js?v=1.6.0"></script>
+  <script src="js/crypto.js?v=1.6.0"></script>
+  <script src="js/app.js?v=1.6.0"></script>
 </body>
 </html>

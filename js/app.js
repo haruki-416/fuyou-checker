@@ -4,7 +4,7 @@
   const C = window.FuyouCalc;
   const RULES = window.FuyouRules;
   const KEY = 'fuyou-checker:v1';
-  const APP_VERSION = '1.5.0'; // index.html の data-app-version と ?v= も一緒に上げる
+  const APP_VERSION = '1.6.0'; // index.html の data-app-version と ?v= も一緒に上げる
   const JOB_COLORS = ['#2f7d6d', '#d9822b', '#5b6abf', '#c2477a', '#7a8b2f', '#3a8fb7'];
 
   // ---------- 状態 ----------
@@ -19,6 +19,7 @@
       settings: { year: defaultYear, birthDate: '', dependentType: 'parent', juminKyuchi: 1, isStudent: false, isSenior: false, otherIncome: 0, contractAnnual: '', useManualProjection: false, plannedExtra: '' },
       jobs: [],
       payments: [],
+      profile: {},
     };
   }
 
@@ -726,8 +727,118 @@
     renderPayments();
     renderJobs();
     renderGuide(s);
+    if (!skipSettingsFill) fillShinkokuForm();
+    renderShinkoku(s);
     $('#rulesInfo').textContent = `使用中のルール：${s.rules.label}（${s.rules.status}）／ js/rules.js で更新できます`;
   }
+
+
+  // ---------- 扶養控除等（異動）申告書 ----------
+  const SK = window.FuyouShinkoku;
+  const skf = $('#shinkokuForm');
+  let lastSummary = null;
+  const profile = () => (state.profile = state.profile || {});
+  {
+    const years = Object.keys(SK.FORM_YEARS).map(Number);
+    skf.elements.formYear.innerHTML = years.map((y) => `<option value="${y}">${SK.FORM_YEARS[y].label}（${y}年）</option>`).join('');
+  }
+  function defaultFormYear() {
+    const y = Number(todayStr.slice(0, 4)), m = Number(todayStr.slice(5, 7));
+    const want = m >= 10 ? y + 1 : y; // 秋以降は翌年分を準備する時期
+    const years = Object.keys(SK.FORM_YEARS).map(Number);
+    return years.includes(want) ? want : Math.max(...years);
+  }
+  function fillShinkokuForm() {
+    const p = profile(), f = skf.elements;
+    f.formYear.value = String(p.formYear || defaultFormYear());
+    const emp = state.jobs.filter((j) => j.kind !== 'contract');
+    emp.sort((a, b) => (a.taxColumn === 'kou' ? -1 : 0) - (b.taxColumn === 'kou' ? -1 : 0));
+    f.jobId.innerHTML = '<option value="">（選ばない）</option>' + emp.map((j) => `<option value="${esc(j.id)}">${esc(j.name)}${j.taxColumn === 'kou' ? '（甲欄）' : '（乙欄）'}</option>`).join('');
+    f.jobId.value = p.jobId && emp.some((j) => j.id === p.jobId) ? p.jobId : '';
+    for (const k of ['payerName', 'payerAddress', 'name', 'kana', 'zip', 'address', 'city', 'householder', 'relationOther', 'school', 'taxOffice']) f[k].value = p[k] || '';
+    const rel = p.relation || '父';
+    const known = [...f.relationSel.options].some((o) => o.value === rel);
+    f.relationSel.value = known ? rel : '';
+    if (!known) f.relationOther.value = rel;
+    for (const k of ['spouse', 'kinro', 'widow', 'singleParent', 'secondary']) f[k].checked = !!p[k];
+  }
+  function readShinkokuForm() {
+    const f = skf.elements, p = profile();
+    Object.assign(p, {
+      formYear: Number(f.formYear.value), jobId: f.jobId.value,
+      payerName: f.payerName.value.trim(), payerAddress: f.payerAddress.value.trim(), name: f.name.value.trim(), kana: f.kana.value.trim(),
+      zip: f.zip.value.trim(), address: f.address.value.trim(), city: f.city.value.trim(), householder: f.householder.value.trim(),
+      relationOther: f.relationOther.value.trim(), relation: f.relationSel.value || f.relationOther.value.trim(),
+      school: f.school.value.trim(), taxOffice: f.taxOffice.value.trim(),
+      spouse: f.spouse.checked, kinro: f.kinro.checked, widow: f.widow.checked, singleParent: f.singleParent.checked, secondary: f.secondary.checked,
+      kinroTouched: true,
+    });
+    return p;
+  }
+  skf.elements.jobId.addEventListener('change', () => {
+    const j = state.jobs.find((x) => x.id === skf.elements.jobId.value);
+    if (j && (!skf.elements.payerName.value || state.jobs.some((x) => x.name === skf.elements.payerName.value))) skf.elements.payerName.value = j.name;
+  });
+  skf.addEventListener('input', () => { readShinkokuForm(); save(); renderShinkoku(); });
+  skf.addEventListener('change', () => { readShinkokuForm(); save(); renderShinkoku(); });
+
+  function renderShinkoku(s) {
+    if (s) lastSummary = s;
+    s = lastSummary;
+    const p = profile();
+    const formYear = Number(skf.elements.formYear.value) || defaultFormYear();
+    $('#formYearNote').textContent = SK.FORM_YEARS[formYear]?.note || '';
+    // 勤労学生：今年の見込みで判定（申告書の年も同じくらい稼ぐ前提）
+    const kc = s ? SK.kinroCheck({ isStudent: !!state.settings.isStudent, income: s.income.projected, formYear }) : { ok: false, reason: '' };
+    if (!p.kinroTouched && p.kinro === undefined && kc.ok) { p.kinro = true; skf.elements.kinro.checked = true; }
+    $('#kinroHint').textContent = kc.ok ? `おすすめ：${kc.reason}（今年の見込みで判断。来年たくさん稼ぐ予定なら外す）` : (kc.reason ? `対象外の見込み：${kc.reason}` : '');
+    const entries = SK.buildEntries(p, { birthDate: state.settings.birthDate, formYear });
+    const kindLabel = { hand: '<span class="badge warn">手書き</span>', blank: '<span class="badge">空欄</span>', employer: '<span class="badge info">勤務先が書く</span>' };
+    let html = '', sec = '';
+    for (const e of entries) {
+      if (e.section !== sec) { if (sec) html += '</tbody></table>'; sec = e.section; html += `<h3>${esc(sec)}</h3><table class="mini nav-table"><tbody>`; }
+      const v = e.kind === 'check' ? '☑ チェックを付ける' : (e.kind === 'fill' || e.kind === 'select') ? `<strong>${esc(e.value)}</strong>` : kindLabel[e.kind] || '';
+      html += `<tr><th>${esc(e.label)}</th><td>${v}${e.note ? `<div class="muted small">${esc(e.note)}</div>` : ''}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    if (!state.settings.birthDate) html = '<div class="note warn">「自分の情報」で生年月日を入れると、生年月日欄も埋まります。</div>' + html;
+    const kou = state.jobs.filter((j) => j.kind !== 'contract' && j.taxColumn === 'kou' && j.active !== false);
+    if (kou.length > 1) html = `<div class="note warn">甲欄のバイト先が${kou.length}か所あります。申告書を出せるのは1か所だけです。</div>` + html;
+    $('#shinkokuNav').innerHTML = html;
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src; el.onload = resolve; el.onerror = () => reject(new Error('PDFの部品を読み込めませんでした（オフライン？）'));
+      document.head.appendChild(el);
+    });
+  }
+  $('#shinkokuPdf').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const p = readShinkokuForm();
+    const formYear = p.formYear;
+    if (!p.name) { setStatus('shinkokuStatus', '先に氏名などを入力してください', 'error'); return; }
+    try {
+      setStatus('shinkokuStatus', '書き込んでいます…', 'ok');
+      if (!window.PDFLib) await loadScript(`js/vendor/pdf-lib.min.js?v=${APP_VERSION}`);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const out = await SK.fillPdf(bytes, p, { birthDate: state.settings.birthDate, formYear }, window.PDFLib);
+      const label = SK.FORM_YEARS[formYear].label;
+      const blob = new Blob([out], { type: 'application/pdf' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `扶養控除等申告書_${label}_記入済み.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      setStatus('shinkokuStatus', `${label}の記入済みPDFを保存しました。マイナンバーは手書きしてください`);
+      toast('記入済みのPDFを保存しました', 'ok');
+    } catch (err) {
+      setStatus('shinkokuStatus', err.message, 'error');
+      toast(err.message, 'error');
+    }
+  });
 
   // ---------- 暗号化バックアップ ----------
   const FC = window.FuyouCrypto;
