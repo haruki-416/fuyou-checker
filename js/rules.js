@@ -56,6 +56,8 @@
       juminFiscalLabel: '令和8年度住民税',
       // 源泉徴収税額表（月額表）甲欄で税額0になる上限（社会保険料控除後、未満）
       kouZeroBelow: 88000,
+      // 家内労働者等の必要経費の特例（最低保障額）
+      kanaiMin: 650000,
       // 短時間労働者の社保加入の賃金要件（月額）。null = 撤廃
       shahoWageReq: [{ until: '2026-09-30', amount: 88000 }],
     },
@@ -79,6 +81,7 @@
       juminNonTaxIncome: { 1: 450000, 2: 415000, 3: 380000 },
       juminFiscalLabel: '令和9年度住民税',
       kouZeroBelow: 105000,
+      kanaiMin: 690000,
       shahoWageReq: [{ until: '2026-09-30', amount: 88000 }],
     },
     2027: {
@@ -101,6 +104,7 @@
       juminNonTaxIncome: { 1: 450000, 2: 415000, 3: 380000 },
       juminFiscalLabel: '令和10年度住民税',
       kouZeroBelow: 111000,
+      kanaiMin: 690000,
       shahoWageReq: [],
     },
   };

@@ -4,7 +4,7 @@
   const C = window.FuyouCalc;
   const RULES = window.FuyouRules;
   const KEY = 'fuyou-checker:v1';
-  const APP_VERSION = '1.4.1'; // index.html の data-app-version と ?v= も一緒に上げる
+  const APP_VERSION = '1.5.0'; // index.html の data-app-version と ?v= も一緒に上げる
   const JOB_COLORS = ['#2f7d6d', '#d9822b', '#5b6abf', '#c2477a', '#7a8b2f', '#3a8fb7'];
 
   // ---------- 状態 ----------
@@ -80,6 +80,11 @@
   let highlightId = null;
   const jobColor = (id) => JOB_COLORS[Math.max(0, state.jobs.findIndex((j) => j.id === id)) % JOB_COLORS.length];
 
+  function jobBadge(j) {
+    if (j.kind === 'contract') return `<span class="badge warn">業務委託${j.kanai ? '・家内労働' : ''}</span>`;
+    return `<span class="badge ${j.taxColumn === 'kou' ? 'ok' : 'info'}">${j.taxColumn === 'kou' ? '甲欄' : '乙欄'}</span>`;
+  }
+
   // ---------- タブ ----------
   $$('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   function showTab(name) {
@@ -123,23 +128,30 @@
     // 上部の数字
     const nextWall = s.walls.filter((w) => !w.info && w.status !== 'over').sort((a, b) => a.limit - b.limit)[0];
     $('#stats').innerHTML = `
-      <div class="stat"><span class="stat-label">${s.year}年にもらった額</span><span class="stat-value">${yen(s.ytd.gross)}</span><span class="stat-sub">通勤手当 ${yen(s.ytd.commute)} は別</span></div>
+      <div class="stat"><span class="stat-label">${s.year}年にもらった額</span><span class="stat-value">${yen(s.ytd.gross)}</span><span class="stat-sub">${s.hasContract ? `うち業務委託の報酬 ${yen(s.ytd.revenue)}` : `通勤手当 ${yen(s.ytd.commute)} は別`}</span></div>
       <div class="stat"><span class="stat-label">年末の見込み</span><span class="stat-value">${yen(s.projected)}</span><span class="stat-sub">${s.settings.useManualProjection ? '自分で入力した予定から' : s.remainingMonths ? `直近の平均 ${yen(s.avgMonthly)}/月 × 残り${s.remainingMonths}か月` : 'この年は確定'}</span></div>
-      <div class="stat ${nextWall ? STATUS[nextWall.status].cls : ''}"><span class="stat-label">次の壁まで</span><span class="stat-value">${nextWall ? yen(nextWall.remaining) : '—'}</span><span class="stat-sub">${nextWall ? `${esc(nextWall.label)}（${man(nextWall.limit)}）${nextWall.perMonth != null ? `／残り月あたり ${yen(nextWall.perMonth)}` : ''}` : 'すべての壁を超えています'}</span></div>
+      <div class="stat ${nextWall ? STATUS[nextWall.status].cls : ''}"><span class="stat-label">次の壁まで${s.mixed ? '（所得で）' : ''}</span><span class="stat-value">${nextWall ? yen(nextWall.remaining) : '—'}</span><span class="stat-sub">${nextWall ? `${esc(nextWall.label)}（${s.mixed ? '合計所得' : ''}${man(nextWall.limit)}）${nextWall.perMonth != null ? `／残り月あたり ${yen(nextWall.perMonth)}` : ''}` : 'すべての壁を超えています'}</span></div>
       <div class="stat"><span class="stat-label">引かれた所得税</span><span class="stat-value">${yen(s.ytd.withholding)}</span><span class="stat-sub">${s.tax.refund > 0 ? `約${yen(s.tax.refund)} 戻る可能性` : '今年の税額の見込み ' + yen(s.tax.projected.tax)}</span></div>`;
 
     $('#projectionNote').textContent = s.age != null ? `${s.year}年12月31日時点で${s.age}歳として判定` : '生年月日を入れると年齢に合わせて判定します';
+    const mn = $('#mixedNote');
+    mn.hidden = !s.mixed;
+    if (s.mixed) {
+      const i = s.income.projected;
+      mn.innerHTML = `給与以外の収入があるので、<strong>合計所得</strong>で判定しています（年末の見込み）。<br>
+        給与所得 ${yen(i.kyuyo)}（年収−${man(s.rules.kyuyoMin)}）＋ 業務委託の所得 ${yen(i.contract)}（報酬−経費${i.kanaiApplied ? '・家内労働者等の特例' : ''}）${i.other ? ` ＋ その他 ${yen(i.other)}` : ''} ＝ <strong>${yen(i.total)}</strong>`;
+    }
 
     renderWallBar(s);
 
     $('#walls').innerHTML = s.walls.map((w) => {
       const st = w.info ? { label: w.status === 'ok' || w.status === 'near' ? '情報' : '切替あり', cls: 'info' } : STATUS[w.status];
       return `<div class="wall ${st.cls}">
-        <div class="wall-amount">${man(w.limit)}<small>${w.inclusive ? '以下ならOK' : '未満ならOK'}</small></div>
+        <div class="wall-amount">${s.mixed ? `<small>合計所得</small>${man(w.limit)}<small>以下ならOK（給与だけなら年収${man(w.salaryLimit)}）</small>` : `${man(w.limit)}<small>${w.inclusive ? '以下ならOK' : '未満ならOK'}</small>`}</div>
         <div class="wall-body">
           <div class="wall-title">${esc(w.label)} <span class="who">${esc(w.who)}に影響</span></div>
           <div class="wall-desc">超えると：${esc(w.over)}</div>
-          ${w.status !== 'over' && !w.info ? `<div class="wall-rest">あと <strong>${yen(w.remaining)}</strong>${w.perMonth != null ? `（残り${s.remainingMonths}か月なら 月 ${yen(w.perMonth)} まで）` : ''}</div>` : ''}
+          ${w.status !== 'over' && !w.info ? `<div class="wall-rest">あと${s.mixed ? '（所得で）' : ''} <strong>${yen(w.remaining)}</strong>${w.perMonth != null ? `（残り${s.remainingMonths}か月なら 月 ${yen(w.perMonth)} まで）` : ''}</div>` : ''}
         </div>
         <span class="badge ${st.cls}">${st.label}</span>
       </div>`;
@@ -152,20 +164,22 @@
   }
 
   function renderWallBar(s) {
+    const cur = s.walls[0]?.current ?? s.ytd.gross, prj = s.walls[0]?.projected ?? s.projected;
+    const showShaho = s.shaho && !s.shaho.ownShaho && !s.mixed; // 合計所得のバーに社保（収入基準）は混ぜない
     const limits = s.walls.map((w) => w.limit);
-    if (s.shaho && !s.shaho.ownShaho) limits.push(s.shaho.limit);
-    const max = Math.max(...limits, s.projected) * 1.08;
+    if (showShaho) limits.push(s.shaho.limit);
+    const max = Math.max(...limits, prj) * 1.08;
     const pct = (v) => Math.min(100, (v / max) * 100);
     const marks = s.walls.map((w) => ({ v: w.limit, label: man(w.limit), cls: w.info ? 'info' : '' }));
-    if (s.shaho && !s.shaho.ownShaho) marks.push({ v: s.shaho.limit, label: `社保${man(s.shaho.limit)}`, cls: 'shaho' });
+    if (showShaho) marks.push({ v: s.shaho.limit, label: `社保${man(s.shaho.limit)}`, cls: 'shaho' });
     marks.sort((a, b) => a.v - b.v);
     $('#wallBar').innerHTML = `
       <div class="bar">
-        <div class="bar-proj" style="width:${pct(s.projected)}%"></div>
-        <div class="bar-fill" style="width:${pct(s.ytd.gross)}%"></div>
+        <div class="bar-proj" style="width:${pct(prj)}%"></div>
+        <div class="bar-fill" style="width:${pct(cur)}%"></div>
         ${marks.map((m, i) => `<div class="bar-mark ${m.cls} ${i % 2 ? 'low' : ''}" style="left:${pct(m.v)}%"><span>${esc(m.label)}</span></div>`).join('')}
       </div>
-      <div class="bar-legend"><span><i class="sw fill"></i>もらった額 ${yen(s.ytd.gross)}</span><span><i class="sw proj"></i>年末の見込み ${yen(s.projected)}</span></div>`;
+      <div class="bar-legend"><span><i class="sw fill"></i>${s.mixed ? '今の合計所得' : 'もらった額'} ${yen(cur)}</span><span><i class="sw proj"></i>年末の見込み ${yen(prj)}</span></div>`;
   }
 
   function renderShaho(s) {
@@ -178,9 +192,9 @@
     const statusTxt = (st) => ({ ok: '<span class="badge ok">セーフ</span>', near: '<span class="badge near">近い</span>', over: '<span class="badge over">超える</span>', unknown: '<span class="badge info">未入力</span>' }[st]);
     el.innerHTML = `
       ${sh.ownShaho ? '<div class="note warn">勤務先の社会保険に入る条件を満たしているため、扶養（健康保険）からは外れる見込みです。</div>' : ''}
-      <p>扶養に入れるのは <strong>年収${man(sh.limit)}未満</strong>（月 約${yen(sh.monthlyLimit)} 未満）の見込みのとき。<br><span class="muted small">税金と違い、<strong>通勤手当を含み</strong>、1〜12月ではなく「これから1年の見込み」で判定します。</span></p>
+      <p>扶養に入れるのは <strong>年収${man(sh.limit)}未満</strong>（月 約${yen(sh.monthlyLimit)} 未満）の見込みのとき。<br><span class="muted small">税金と違い、<strong>通勤手当を含み</strong>、1〜12月ではなく「これから1年の見込み」で判定します。${sh.hasContract ? `業務委託の報酬も含めます（経費は${sh.deductExpenses ? '差し引く' : '差し引かない'}設定）。` : ''}</span></p>
       <table class="mini">
-        <tr><th>契約上の見込み年収</th><td>${sh.contractAnnual ? yen(sh.contractAnnual) : '<span class="muted">バイト先に契約月収を入れると表示</span>'}</td><td>${statusTxt(sh.statusContract)}</td></tr>
+        <tr><th>${sh.hasContract ? '契約上の給与＋業務委託の見込み' : '契約上の見込み年収'}</th><td>${sh.contractAnnual ? yen(sh.contractAnnual) : '<span class="muted">バイト先に契約月収を入れると表示</span>'}</td><td>${statusTxt(sh.statusContract)}</td></tr>
         <tr><th>最近のペース ×12</th><td>${yen(sh.paceAnnual)}</td><td>${statusTxt(sh.statusPace)}</td></tr>
       </table>
       ${sh.overMonths.length ? `<p class="small">月の目安を超えた月：${sh.overMonths.map((m) => m + '月').join('、')}<br><span class="muted">一時的なら、勤務先の「一時的な収入増加」の証明で扶養に残れる場合があります。</span></p>` : ''}
@@ -204,14 +218,17 @@
       <table class="mini">
         <tr><th>今年の所得税（見込み）</th><td>${yen(t.projected.tax)}</td></tr>
         <tr><th>ここまでの源泉徴収の合計</th><td>${yen(s.ytd.withholding)}</td></tr>
-        <tr><th>給与所得（＝年収−${man(s.rules.kyuyoMin)}）</th><td>${yen(t.projected.kyuyoShotoku)}</td></tr>
+        <tr><th>給与所得（＝年収−${man(s.rules.kyuyoMin)}）</th><td>${yen(s.income.projected.kyuyo)}</td></tr>
+        ${s.hasContract ? `<tr><th>業務委託の所得（報酬−経費）</th><td>${yen(s.income.projected.contract)}${s.income.projected.kanaiApplied ? ' <span class="muted small">家内労働者等の特例</span>' : ''}</td></tr>` : ''}
+        ${s.income.projected.other ? `<tr><th>その他の所得</th><td>${yen(s.income.projected.other)}</td></tr>` : ''}
+        ${s.mixed ? `<tr><th>合計所得（年末の見込み）</th><td><strong>${yen(s.income.projected.total)}</strong></td></tr>` : ''}
         ${pd ? `<tr><th>親が受けられる控除</th><td>${esc(pd.name)}${pd.amount ? `（${man(pd.amount)}）` : ''}</td></tr>` : ''}
       </table>
       <h3>バイト先ごと</h3>
       <ul class="jobchecks">${state.jobs.map((j) => {
         const b = s.byJob[j.id] || { gross: 0, withholding: 0 };
-        return `<li><span class="dot" style="background:${jobColor(j.id)}"></span><strong>${esc(j.name)}</strong> <span class="badge ${j.taxColumn === 'kou' ? 'ok' : 'info'}">${j.taxColumn === 'kou' ? '甲欄' : '乙欄'}</span>
-          <div class="small">支給 ${yen(b.gross)} ／ 源泉 ${yen(b.withholding)}</div></li>`;
+        return `<li><span class="dot" style="background:${jobColor(j.id)}"></span><strong>${esc(j.name)}</strong> ${jobBadge(j)}
+          <div class="small">${j.kind === 'contract' ? `報酬 ${yen(b.gross)} ／ 経費 ${yen(b.expenses || 0)} ／ 源泉 ${yen(b.withholding)}` : `支給 ${yen(b.gross)} ／ 源泉 ${yen(b.withholding)}`}</div></li>`;
       }).join('') || '<li class="muted small">バイト先が未登録です。</li>'}</ul>`;
   }
 
@@ -219,7 +236,7 @@
     const items = [...s.advice];
     const overs = s.walls.filter((w) => !w.info && (w.status === 'warn' || w.status === 'over'));
     for (const w of overs) {
-      items.unshift({ level: w.status === 'over' ? 'danger' : 'warn', title: `${w.label}（${man(w.limit)}）${w.status === 'over' ? 'を超えました' : 'を超えそうです'}`,
+      items.unshift({ level: w.status === 'over' ? 'danger' : 'warn', title: `${w.label}（${s.mixed ? '合計所得' : ''}${man(w.limit)}）${w.status === 'over' ? 'を超えました' : 'を超えそうです'}`,
         body: w.who === '親' || w.who === '配偶者' ? `${w.who}に伝えておきましょう。${w.who}の年末調整で申告する内容が変わります。` : w.over });
     }
     for (const miss of missingPays(s.year)) {
@@ -257,14 +274,36 @@
     if (cur && state.jobs.some((j) => j.id === cur)) sel.value = cur;
   }
   // 入力中に「課税分」と振込額のチェックを表示
+  const isContractJob = (job) => !!job && job.kind === 'contract';
+  const formIsContract = () => isContractJob(state.jobs.find((j) => j.id === pf.elements.jobId.value));
   function readPaymentForm() {
     const f = pf.elements;
     const n = (el) => (el.value === '' ? null : Number(el.value) || 0);
-    const total = n(f.total) ?? 0, commute = n(f.commute) ?? 0, withholding = n(f.withholding) ?? 0, shaho = n(f.shaho) ?? 0, net = n(f.net);
-    return { total, commute, withholding, shaho, net, gross: total - commute };
+    const contract = formIsContract();
+    const total = n(f.total) ?? 0, withholding = n(f.withholding) ?? 0, net = n(f.net);
+    if (contract) {
+      const expenses = n(f.expenses) ?? 0;
+      return { contract, total, commute: 0, shaho: 0, expenses, withholding, net, gross: total };
+    }
+    const commute = n(f.commute) ?? 0, shaho = n(f.shaho) ?? 0;
+    return { contract, total, commute, withholding, shaho, expenses: 0, net, gross: total - commute };
   }
   function paymentProblems(v) {
     const errors = [], notes = [];
+    if (v.contract) {
+      if (v.expenses > v.total) notes.push('経費が報酬より多くなっています（この仕事は赤字の扱いになります）。入力ミスでないか確認してください');
+      if (v.withholding > 0 && Math.abs(v.withholding - Math.floor(v.total * 0.1021)) > Math.max(10, v.total * 0.002) && v.total <= 1000000) {
+        notes.push(`源泉徴収は報酬の10.21%（${yen(Math.floor(v.total * 0.1021))}）が一般的です。支払明細の金額どおりなら問題ありません`);
+      }
+      if (v.net != null && v.total > 0) {
+        const expected = v.total - v.withholding;
+        if (v.net === v.total && v.withholding > 0) errors.push('報酬額と振込額が同じです。報酬額に振込額（源泉徴収後）を入れていませんか？');
+        else if (v.net > v.total) errors.push('振込額が報酬額より多くなっています。報酬額を確認してください（交通費を別に振り込まれている場合は報酬に含めてください）');
+        else if (v.net === expected) notes.push('振込額とぴったり合っています ✓');
+        else notes.push(`報酬 − 源泉徴収 = ${yen(expected)}。振込額との差 ${yen(expected - v.net)} は振込手数料などなら問題ありません`);
+      }
+      return { errors, notes };
+    }
     if (v.commute > v.total) errors.push('交通費が総支給額より大きくなっています。総支給額は交通費込みの合計を入れてください');
     if (v.net != null && v.total > 0) {
       const expected = v.total - v.withholding - v.shaho;
@@ -282,6 +321,14 @@
     const el = $('#paymentBreakdown');
     if (!v.total) { el.innerHTML = ''; return; }
     const { errors, notes } = paymentProblems(v);
+    if (v.contract) {
+      el.innerHTML = `
+        <div class="bd-row"><span>所得になる額</span><strong>${yen(v.total - v.expenses)}</strong><span class="muted small">＝ 報酬 ${yen(v.total)} − 経費 ${yen(v.expenses)}（家内労働者等の特例は年間でまとめて計算）</span></div>
+        <div class="bd-row"><span>社会保険の判定に使う額</span><strong>${yen(state.settings.shahoDeductExpenses ? v.total - v.expenses : v.total)}</strong><span class="muted small">${state.settings.shahoDeductExpenses ? '経費を差し引く設定' : '報酬そのまま（経費は引かない設定）'}</span></div>
+        ${errors.map((m) => `<div class="bd-msg error">${esc(m)}</div>`).join('')}
+        ${notes.map((m) => `<div class="bd-msg">${esc(m)}</div>`).join('')}`;
+      return;
+    }
     el.innerHTML = `
       <div class="bd-row"><span>税金の計算に使う額（課税分）</span><strong>${yen(Math.max(0, v.gross))}</strong><span class="muted small">＝ 総支給 ${yen(v.total)} − 交通費 ${yen(v.commute)}</span></div>
       <div class="bd-row"><span>社会保険の判定に使う額</span><strong>${yen(v.total)}</strong><span class="muted small">交通費込み</span></div>
@@ -289,6 +336,18 @@
       ${notes.map((m) => `<div class="bd-msg">${esc(m)}</div>`).join('')}`;
   }
   pf.addEventListener('input', renderBreakdown);
+  // バイト先の種類に合わせて入力欄を切り替える
+  function applyPaymentKind() {
+    pf.classList.toggle('is-contract', formIsContract());
+    renderBreakdown();
+  }
+  pf.elements.jobId.addEventListener('change', applyPaymentKind);
+  $('#calcGensen').addEventListener('click', () => {
+    const t = Number(pf.elements.total.value) || 0;
+    // 100万円以下は10.21%、超える部分は20.42%
+    pf.elements.withholding.value = Math.floor(t <= 1000000 ? t * 0.1021 : 102100 + (t - 1000000) * 0.2042);
+    renderBreakdown();
+  });
 
   // ---------- 給料日から支給日を自動入力 ----------
   const HD = window.FuyouHolidays;
@@ -336,8 +395,9 @@
     if (errors.length && !confirm(errors.join('\n') + '\n\nこのまま保存しますか？')) return;
     const rec = {
       id: f.id.value || uid(), jobId: f.jobId.value, payDate: f.payDate.value,
-      gross: v.gross, commute: v.commute, // 保存は「課税分」と「交通費」に分けておく
+      gross: v.gross, commute: v.commute, // 給与は「課税分」と「交通費」に分けて保存。業務委託は gross＝報酬
       withholding: v.withholding, shaho: v.shaho, net: v.net, memo: f.memo.value.trim(),
+      ...(v.contract ? { expenses: v.expenses } : {}),
     };
     const i = state.payments.findIndex((p) => p.id === rec.id);
     if (i >= 0) state.payments[i] = rec; else state.payments.push(rec);
@@ -345,6 +405,7 @@
     const keepJob = rec.jobId;
     resetPaymentForm();
     pf.elements.jobId.value = keepJob;
+    applyPaymentKind();
     autoFillPayDate();
     const jn = state.jobs.find((j) => j.id === rec.jobId)?.name || '';
     const what = `${rec.payDate} ${jn} ${yen(rec.gross + rec.commute)}`;
@@ -363,7 +424,7 @@
     payDateAuto = true;
     $('#paymentSubmit').textContent = '追加する';
     $('#paymentCancel').hidden = true;
-    renderBreakdown();
+    if (typeof applyPaymentKind === 'function') applyPaymentKind(); else renderBreakdown();
     if (typeof autoFillPayDate === 'function') autoFillPayDate();
   }
   $('#paymentCancel').addEventListener('click', resetPaymentForm);
@@ -374,10 +435,12 @@
     $('#paymentListTitle').textContent = `${year}年の記録（${list.length}件）`;
     const jobName = (id) => state.jobs.find((j) => j.id === id)?.name || '（削除済み）';
     $('#paymentTable').innerHTML = list.length ? `
-      <thead><tr><th>支給日</th><th>バイト先</th><th class="num">総支給（交通費込）</th><th class="num">うち交通費</th><th class="num">課税分</th><th class="num">所得税</th><th class="num">社保</th><th class="num">振込額</th><th>メモ</th><th></th></tr></thead>
+      <thead><tr><th>支給日</th><th>バイト先</th><th class="num">総支給・報酬</th><th class="num">交通費・経費</th><th class="num">課税分・所得</th><th class="num">所得税</th><th class="num">社保</th><th class="num">振込額</th><th>メモ</th><th></th></tr></thead>
       <tbody>${list.map((p) => `<tr data-row="${esc(p.id)}" class="${p.id === highlightId ? 'just-saved' : ''}">
-        <td>${esc(p.payDate)}</td><td><span class="dot" style="background:${jobColor(p.jobId)}"></span>${esc(jobName(p.jobId))}</td>
-        <td class="num">${yen((p.gross || 0) + (p.commute || 0))}</td><td class="num">${yen(p.commute || 0)}</td><td class="num strong">${yen(p.gross)}</td><td class="num">${yen(p.withholding)}</td><td class="num">${yen(p.shaho)}</td><td class="num muted">${p.net != null ? yen(p.net) : '-'}</td>
+        <td>${esc(p.payDate)}</td><td><span class="dot" style="background:${jobColor(p.jobId)}"></span>${esc(jobName(p.jobId))}${isContractJob(state.jobs.find((j) => j.id === p.jobId)) ? ' <span class="badge info">委託</span>' : ''}</td>
+        ${isContractJob(state.jobs.find((j) => j.id === p.jobId))
+          ? `<td class="num">${yen(p.gross)}</td><td class="num">${yen(p.expenses || 0)}</td><td class="num strong">${yen((p.gross || 0) - (p.expenses || 0))}</td>`
+          : `<td class="num">${yen((p.gross || 0) + (p.commute || 0))}</td><td class="num">${yen(p.commute || 0)}</td><td class="num strong">${yen(p.gross)}</td>`}<td class="num">${yen(p.withholding)}</td><td class="num">${yen(p.shaho)}</td><td class="num muted">${p.net != null ? yen(p.net) : '-'}</td>
         <td class="memo">${esc(p.memo)}</td>
         <td class="actions"><button class="btn tiny" data-edit="${esc(p.id)}">編集</button><button class="btn tiny danger" data-del="${esc(p.id)}">削除</button></td></tr>`).join('')}</tbody>`
       : '<tbody><tr><td class="muted">まだ記録がありません。</td></tr></tbody>';
@@ -392,9 +455,10 @@
       const f = pf.elements;
       f.id.value = p.id; f.jobId.value = p.jobId; f.payDate.value = p.payDate; f.total.value = (p.gross || 0) + (p.commute || 0);
       f.commute.value = p.commute || ''; f.withholding.value = p.withholding || ''; f.shaho.value = p.shaho || '';
+      f.expenses.value = p.expenses || '';
       f.net.value = p.net != null ? p.net : ''; f.memo.value = p.memo || '';
       payDateAuto = false;
-      renderBreakdown();
+      applyPaymentKind();
       renderPayDateHint();
       $('#paymentSubmit').textContent = '更新する';
       $('#paymentCancel').hidden = false;
@@ -408,8 +472,11 @@
 
   $('#exportCsv').addEventListener('click', () => {
     const jobName = (id) => state.jobs.find((j) => j.id === id)?.name || '';
-    const rows = [['支給日', 'バイト先', '総支給額（交通費込み）', 'うち交通費', '課税分', '所得税', '社会保険料', '振込額', 'メモ']];
-    state.payments.slice().sort((a, b) => a.payDate.localeCompare(b.payDate)).forEach((p) => rows.push([p.payDate, jobName(p.jobId), (p.gross || 0) + (p.commute || 0), p.commute || 0, p.gross, p.withholding, p.shaho, p.net ?? '', p.memo || '']));
+    const rows = [['支給日', 'バイト先・仕事', '種類', '総支給額（交通費込み）・報酬', 'うち交通費', '経費', '課税分・所得', '所得税（源泉徴収）', '社会保険料', '振込額', 'メモ']];
+    state.payments.slice().sort((a, b) => a.payDate.localeCompare(b.payDate)).forEach((p) => {
+      const c = isContractJob(state.jobs.find((j) => j.id === p.jobId));
+      rows.push([p.payDate, jobName(p.jobId), c ? '業務委託' : '給与', (p.gross || 0) + (p.commute || 0), p.commute || 0, p.expenses || 0, (p.gross || 0) - (p.expenses || 0), p.withholding, p.shaho, p.net ?? '', p.memo || '']);
+    });
     const csv = rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
     download('﻿' + csv, `baito-kyuryo-${todayStr}.csv`, 'text/csv');
   });
@@ -420,7 +487,7 @@
     e.preventDefault();
     const f = jf.elements;
     const rec = {
-      id: f.id.value || uid(), name: f.name.value.trim(), taxColumn: f.taxColumn.value,
+      id: f.id.value || uid(), name: f.name.value.trim(), kind: f.kind.value, kanai: f.kind.value === 'contract' && f.kanai.checked, taxColumn: f.taxColumn.value,
       weeklyHours: Number(f.weeklyHours.value) || 0, contractMonthly: Number(f.contractMonthly.value) || 0,
       companyLarge: f.companyLarge.checked, fullTimeLike: f.fullTimeLike.checked, active: f.active.checked,
       payDay: f.payDay.value === '' ? '' : f.payDay.value === 'end' ? 'end' : Number(f.payDay.value), payShift: f.payShift.value,
@@ -429,7 +496,7 @@
     const i = state.jobs.findIndex((j) => j.id === rec.id);
     if (i >= 0) state.jobs[i] = rec; else state.jobs.push(rec);
     if (!save()) { setStatus('jobStatus', '保存に失敗しました', 'error'); return; }
-    if (rec.taxColumn === 'kou' && state.jobs.filter((j) => j.taxColumn === 'kou' && j.active !== false).length > 1) toast(`「${rec.name}」を保存しました。注意：甲欄（扶養控除等申告書）は1か所だけです`, 'error');
+    if (rec.kind !== 'contract' && rec.taxColumn === 'kou' && state.jobs.filter((j) => j.kind !== 'contract' && j.taxColumn === 'kou' && j.active !== false).length > 1) toast(`「${rec.name}」を保存しました。注意：甲欄（扶養控除等申告書）は1か所だけです`, 'error');
     else toast(`「${rec.name}」を${i >= 0 ? '更新' : '登録'}しました`, 'ok');
     resetJobForm();
     setStatus('jobStatus', `「${rec.name}」を${i >= 0 ? '更新' : '登録'}しました`);
@@ -437,10 +504,16 @@
   });
   function resetJobForm() {
     jf.reset(); jf.elements.id.value = ''; jf.elements.active.checked = true;
-    jf.elements.taxColumn.value = state.jobs.some((j) => j.taxColumn === 'kou') ? 'otsu' : 'kou';
+    jf.elements.taxColumn.value = state.jobs.some((j) => j.kind !== 'contract' && j.taxColumn === 'kou') ? 'otsu' : 'kou';
     $('#jobSubmit').textContent = '登録する'; $('#jobCancel').hidden = true;
+    applyJobKind();
     renderPayPreview();
   }
+  function applyJobKind() {
+    jf.classList.toggle('is-contract', jf.elements.kind.value === 'contract');
+    try { $('#kanaiMinLabel').textContent = (C.getRules(state.settings.year).kanaiMin / 10000) + '万円'; } catch (e) { /* noop */ }
+  }
+  jf.elements.kind.addEventListener('change', applyJobKind);
   // 登録前に「この設定だと何日になるか」を見せる
   function renderPayPreview() {
     const f = jf.elements;
@@ -494,8 +567,8 @@
       const n = state.payments.filter((p) => p.jobId === j.id).length;
       return `<div class="job ${j.active === false ? 'inactive' : ''}">
         <span class="dot big" style="background:${jobColor(j.id)}"></span>
-        <div class="job-body"><strong>${esc(j.name)}</strong> <span class="badge ${j.taxColumn === 'kou' ? 'ok' : 'info'}">${j.taxColumn === 'kou' ? '甲欄' : '乙欄'}</span>${j.active === false ? ' <span class="badge">退職</span>' : ''}
-          <div class="muted small">週${j.weeklyHours || '?'}時間${j.contractMonthly ? ` ・契約月収 ${yen(j.contractMonthly)}` : ''}${j.companyLarge ? ' ・51人以上' : ''} ・記録${n}件</div>
+        <div class="job-body"><strong>${esc(j.name)}</strong> ${jobBadge(j)}${j.active === false ? ' <span class="badge">退職</span>' : ''}
+          <div class="muted small">${j.kind === 'contract' ? `報酬−経費で所得を計算${j.kanai ? '（家内労働者等の特例あり）' : ''} ・記録${n}件` : `週${j.weeklyHours || '?'}時間${j.contractMonthly ? ` ・契約月収 ${yen(j.contractMonthly)}` : ''}${j.companyLarge ? ' ・51人以上' : ''} ・記録${n}件`}</div>
           ${j.payDay ? `<div class="small">💴 ${esc(HD.describe(j))}${j.active !== false ? ` ・次は <strong>${nextPay(j)}</strong>` : ''}</div>` : ''}</div>
         <div class="actions"><button class="btn tiny" data-jedit="${esc(j.id)}">編集</button><button class="btn tiny danger" data-jdel="${esc(j.id)}">削除</button></div>
       </div>`;
@@ -503,9 +576,10 @@
     $$('[data-jedit]', el).forEach((b) => b.addEventListener('click', () => {
       const j = state.jobs.find((x) => x.id === b.dataset.jedit);
       const f = jf.elements;
-      f.id.value = j.id; f.name.value = j.name; f.taxColumn.value = j.taxColumn; f.weeklyHours.value = j.weeklyHours || '';
+      f.id.value = j.id; f.name.value = j.name; f.kind.value = j.kind || 'employee'; f.kanai.checked = !!j.kanai; f.taxColumn.value = j.taxColumn || 'kou'; f.weeklyHours.value = j.weeklyHours || '';
       f.contractMonthly.value = j.contractMonthly || ''; f.companyLarge.checked = !!j.companyLarge; f.fullTimeLike.checked = !!j.fullTimeLike; f.active.checked = j.active !== false;
       f.payDay.value = j.payDay ? String(j.payDay) : ''; f.payShift.value = j.payShift || 'before';
+      applyJobKind();
       renderPayPreview();
       $('#jobSubmit').textContent = '更新する'; $('#jobCancel').hidden = false;
       jf.scrollIntoView({ behavior: 'smooth' });
@@ -526,7 +600,7 @@
     const s = state.settings, f = sf.elements;
     f.birthDate.value = s.birthDate || ''; f.dependentType.value = s.dependentType; f.juminKyuchi.value = String(s.juminKyuchi || 1);
     f.otherIncome.value = s.otherIncome || ''; f.contractAnnual.value = s.contractAnnual || '';
-    f.isStudent.checked = !!s.isStudent; f.isSenior.checked = !!s.isSenior;
+    f.isStudent.checked = !!s.isStudent; f.isSenior.checked = !!s.isSenior; f.shahoDeductExpenses.checked = !!s.shahoDeductExpenses;
     f.useManualProjection.checked = !!s.useManualProjection; f.plannedExtra.value = s.plannedExtra || '';
     f.plannedExtra.disabled = !s.useManualProjection;
   }
@@ -535,7 +609,7 @@
     Object.assign(state.settings, {
       birthDate: f.birthDate.value, dependentType: f.dependentType.value, juminKyuchi: Number(f.juminKyuchi.value),
       otherIncome: Number(f.otherIncome.value) || 0, contractAnnual: f.contractAnnual.value ? Number(f.contractAnnual.value) : '',
-      isStudent: f.isStudent.checked, isSenior: f.isSenior.checked,
+      isStudent: f.isStudent.checked, isSenior: f.isSenior.checked, shahoDeductExpenses: f.shahoDeductExpenses.checked,
       useManualProjection: f.useManualProjection.checked, plannedExtra: f.plannedExtra.value ? Number(f.plannedExtra.value) : '',
     });
     f.plannedExtra.disabled = !f.useManualProjection.checked;
@@ -623,6 +697,14 @@
         <li>乙欄の給料が20万円を超えて、しかも所得税がかかる年収なら<strong>確定申告が必要</strong>。</li>
         <li>年末までに辞めたバイト先の源泉徴収票は必ずもらっておきましょう。</li>
       </ul>
+      <h3>業務委託（フリーランス）の収入があるとき</h3>
+      <ul>
+        <li>バイト先の「働き方」を<strong>業務委託</strong>にして登録すると、報酬・経費・源泉徴収（10.21%）を記録できます。</li>
+        <li>給与所得控除（${man(r.kyuyoMin)}）はなく、<strong>報酬−経費</strong>が所得になります。壁は給与所得と合計した<strong>合計所得</strong>で判定します。</li>
+        <li>家内労働者等（特定の相手に継続して役務を提供する人、外交員など）は、経費が少なくても${man(r.kanaiMin)}まで経費と認められる特例があります（給与がある場合はその分を引いた残り）。</li>
+        <li>年末調整がないので、所得税がかかるなら<strong>確定申告</strong>が必要。源泉徴収されていれば還付申告で戻ることも。確定申告しない場合も、住民税の申告が必要なことがあります。</li>
+        <li>勤務先の社会保険には入れません。家族の健康保険の扶養は、業務委託の報酬も含めた「これから1年の見込み収入」で判定されます（経費を引くかは健保による）。</li>
+      </ul>
       <h3>よくある勘違い</h3>
       <ul>
         <li>「12月分の給料」が1月に振り込まれたら、それは<strong>翌年</strong>の収入。</li>
@@ -636,6 +718,7 @@
     yearSelect.value = String(state.settings.year);
     if (!skipSettingsFill) fillSettings();
     fillJobSelect();
+    pf.classList.toggle('is-contract', formIsContract());
     if (!pf.elements.id.value && payDateAuto) autoFillPayDate(); else renderPayDateHint();
     let s;
     try { s = C.summarize(state, todayStr); } catch (e) { toast(e.message); return; }

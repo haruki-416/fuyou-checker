@@ -216,3 +216,15 @@ tr.just-saved td { animation: rowflash 2.5s ease; }
 .handoff-qr { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 8px; flex: none; }
 .handoff-qr svg { width: 100%; height: 100%; display: block; }
 .handoff-body { flex: 1; min-width: 200px; }
+
+/* 業務委託 */
+.contract-only, .job-contract-only { display: none !important; }
+#paymentForm.is-contract .contract-only { display: inline !important; }
+#paymentForm.is-contract label.contract-only { display: flex !important; }
+#paymentForm.is-contract .emp-only { display: none !important; }
+#jobForm.is-contract .job-contract-only { display: flex !important; }
+#jobForm.is-contract .job-emp-only { display: none !important; }
+#paymentForm .hint.contract-only { display: none !important; }
+#paymentForm.is-contract .hint.contract-only { display: block !important; }
+.note-mixed { background: var(--info-bg); color: var(--ink); border-radius: 8px; padding: .6rem .8rem; margin: .4rem 0 .2rem; }
+.wall-amount small:first-child { margin-bottom: -.1rem; }
